@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1088054337061",
+    "project_id": "stockin-1de1f",
+    "storage_bucket": "stockin-1de1f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1088054337061:android:5be95b09c7e8d4589729cc",
+        "android_client_info": {
+          "package_name": "com.example.stockin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkUAXJiUJAFQg3i5_gewKosIHfWazQaU0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

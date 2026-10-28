@@ -1,0 +1,711 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+// businesses/{businessId}: name/ownerId strings; membership tier and status
+// enums; integer seat counts; nullable membership timestamps; createdAt;
+// nullable seatChangeUid and pendingPaymentId; optional deletion flag.
+// Tenant owners create a business.
+// Current membership tiers: 50k/30-31 days/2+2 seats,
+// 250k/about 6 calendar months/6+6 seats, 400k/about 12 calendar months/20+20
+// seats. Legacy 100k/200k business/payment documents are retained for review.
+// users/{uid}: businessId/name strings, role enum, isActive boolean, optional
+// isBanned boolean, createdAt.
+// The trusted Firebase Console bootstraps the initial admin profile with role
+// "admin" and businessId "__admin__"; clients cannot grant or change this role.
+// products/{productId}: tenant ID, barcode/name/unit/category strings, prices,
+// integer stock thresholds, optional piecesPerPack (pcs per dus), timestamps,
+// and optional atomic stock-change IDs. Stock and prices are stored per pcs.
+// transactions/{transactionId}: tenant/cashier IDs and name, up to 50 item
+// maps, total, payment-method enum, createdAt, and a product-ID-to-quantity
+// map.
+// stock_logs/{logId}: tenant/product/user IDs, in/out enum, positive quantity,
+// bounded note, createdAt.
+// membership_payments/{paymentId}: tenant ID, tier/amount, bounded proof note
+// or image path, pending/approved/rejected status, submittedAt, nullable
+// approvedAt, and optional reviewedBy UID.
+// ===============================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function businessPath(businessId) {
+      return /databases/$(database)/documents/businesses/$(businessId);
+    }
+
+    function userExists(uid) {
+      return signedIn() && exists(userPath(uid));
+    }
+
+    function isAdmin() {
+      return userExists(request.auth.uid)
+        && get(userPath(request.auth.uid)).data.role == 'admin'
+        && get(userPath(request.auth.uid)).data.isActive == true;
+    }
+
+    function currentUser() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function belongsTo(businessId) {
+      return hasTenantProfile(businessId)
+        && exists(businessPath(businessId))
+        && (!('isDeleting' in get(businessPath(businessId)).data)
+          || get(businessPath(businessId)).data.isDeleting == false);
+    }
+
+    function hasTenantProfile(businessId) {
+      return userExists(request.auth.uid)
+        && currentUser().isActive == true
+        && (!('isBanned' in currentUser())
+          || currentUser().isBanned == false)
+        && currentUser().businessId == businessId;
+    }
+
+    function isDeletingBusiness(businessId) {
+      return isAdmin()
+        && exists(businessPath(businessId))
+        && get(businessPath(businessId)).data.isDeleting == true;
+    }
+
+    function hasRole(businessId, role) {
+      return belongsTo(businessId) && currentUser().role == role;
+    }
+
+    function isBusinessOwner(businessId) {
+      return hasRole(businessId, 'owner')
+        && get(businessPath(businessId)).data.ownerId == request.auth.uid;
+    }
+
+    function hasTenantRole(businessId, roles) {
+      let userRef = userPath(request.auth.uid);
+      let businessRef = businessPath(businessId);
+      let user = get(userRef).data;
+      let business = get(businessRef).data;
+      return exists(userRef)
+        && exists(businessRef)
+        && user.businessId == businessId
+        && user.isActive == true
+        && (!('isBanned' in user) || user.isBanned == false)
+        && (!('isDeleting' in business) || business.isDeleting == false)
+        && roles.hasAny([user.role])
+        && (user.role != 'owner' || business.ownerId == request.auth.uid);
+    }
+
+    function validBusiness(data) {
+      return data.keys().hasOnly([
+          'name', 'ownerId', 'membershipTier', 'maxKasirAccounts',
+          'maxStokAccounts', 'activeKasirAccounts', 'activeStokAccounts',
+          'membershipStatus', 'membershipStartDate', 'membershipEndDate',
+          'createdAt', 'seatChangeUid', 'pendingPaymentId',
+          'isArchived', 'isDeleting'
+        ])
+        && data.keys().hasAll([
+          'name', 'ownerId', 'membershipTier', 'maxKasirAccounts',
+          'maxStokAccounts', 'activeKasirAccounts', 'activeStokAccounts',
+          'membershipStatus', 'membershipStartDate', 'membershipEndDate',
+          'createdAt', 'seatChangeUid', 'pendingPaymentId'
+        ])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.ownerId is string && data.ownerId.size() <= 128
+        && data.membershipTier in [
+          'none', '50k', '250k', '400k', '100k', '200k'
+        ]
+        && data.maxKasirAccounts is int && data.maxKasirAccounts >= 0
+          && data.maxKasirAccounts <= 20
+        && data.maxStokAccounts is int && data.maxStokAccounts >= 0
+          && data.maxStokAccounts <= 20
+        && data.activeKasirAccounts is int
+          && data.activeKasirAccounts >= 0
+          && data.activeKasirAccounts <= data.maxKasirAccounts
+        && data.activeStokAccounts is int
+          && data.activeStokAccounts >= 0
+          && data.activeStokAccounts <= data.maxStokAccounts
+        && data.membershipStatus in ['inactive', 'pending', 'active', 'expired']
+        && (data.membershipStartDate == null
+          || data.membershipStartDate is timestamp)
+        && (data.membershipEndDate == null
+          || data.membershipEndDate is timestamp)
+        && (data.seatChangeUid == null
+          || (data.seatChangeUid is string && data.seatChangeUid.size() <= 128))
+        && (data.pendingPaymentId == null
+          || (data.pendingPaymentId is string
+            && data.pendingPaymentId.size() <= 128))
+        && (!('isArchived' in data) || data.isArchived is bool)
+        && (!('isDeleting' in data) || data.isDeleting is bool)
+        && data.createdAt is timestamp;
+    }
+
+    function validUser(data) {
+      return data.keys().hasOnly([
+          'businessId', 'name', 'role', 'isActive', 'isBanned', 'createdAt'
+        ])
+        && data.keys().hasAll([
+          'businessId', 'name', 'role', 'isActive', 'createdAt'
+        ])
+        && data.businessId is string && data.businessId.size() > 0
+          && data.businessId.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role in ['owner', 'kasir', 'staf_stok']
+        && data.isActive is bool
+        && (!('isBanned' in data) || data.isBanned is bool)
+        && data.createdAt is timestamp;
+    }
+
+    function validProduct(data) {
+      return data.keys().hasOnly([
+          'businessId', 'barcode', 'name', 'price', 'costPrice', 'stock',
+          'unit', 'piecesPerPack', 'category', 'minStock', 'createdAt', 'updatedAt',
+          'lastTransactionId', 'lastStockLogId'
+        ])
+        && data.keys().hasAll([
+          'businessId', 'barcode', 'name', 'price', 'costPrice', 'stock',
+          'unit', 'category', 'minStock', 'createdAt', 'updatedAt'
+        ])
+        && data.businessId is string && data.businessId.size() <= 128
+        && data.barcode is string && data.barcode.size() > 0
+          && data.barcode.size() <= 80
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && data.price is number && data.price >= 0 && data.price <= 100000000000
+        && data.costPrice is number && data.costPrice >= 0
+          && data.costPrice <= 100000000000
+        && data.stock is int && data.stock >= 0 && data.stock <= 100000000
+        && data.unit is string && data.unit.size() > 0 && data.unit.size() <= 20
+        && (!('piecesPerPack' in data)
+          || (data.piecesPerPack is int && data.piecesPerPack >= 1
+            && data.piecesPerPack <= 100000
+            && (data.unit == 'dus' || data.piecesPerPack == 1)))
+        && data.category is string && data.category.size() <= 80
+        && data.minStock is int && data.minStock >= 0 && data.minStock <= 100000000
+        && data.createdAt is timestamp && data.updatedAt is timestamp
+        && (!('lastTransactionId' in data)
+          || (data.lastTransactionId is string
+            && data.lastTransactionId.size() <= 128))
+        && (!('lastStockLogId' in data)
+          || (data.lastStockLogId is string && data.lastStockLogId.size() <= 128));
+    }
+
+    function validNewProduct(data) {
+      return validProduct(data)
+        && data.unit in ['pcs', 'dus']
+        && 'piecesPerPack' in data;
+    }
+
+    function validProductUpdate(data) {
+      return validProduct(data)
+        && (
+          (data.unit in ['pcs', 'dus'] && 'piecesPerPack' in data)
+          || (
+          !('piecesPerPack' in resource.data)
+          && !('piecesPerPack' in data)
+          && data.unit == resource.data.unit
+          )
+        );
+    }
+
+    function validTransaction(data) {
+      return data.keys().hasOnly([
+          'businessId', 'cashierId', 'cashierName', 'items', 'totalAmount',
+          'paymentMethod', 'createdAt', 'stockChanges'
+        ])
+        && data.keys().hasAll([
+          'businessId', 'cashierId', 'cashierName', 'items', 'totalAmount',
+          'paymentMethod', 'createdAt', 'stockChanges'
+        ])
+        && data.businessId is string && data.businessId.size() <= 128
+        && data.cashierId == request.auth.uid
+        && data.cashierName is string
+          && data.cashierName.size() > 0 && data.cashierName.size() <= 100
+        && data.items is list && data.items.size() > 0 && data.items.size() <= 50
+        && data.stockChanges is map
+        && data.stockChanges.keys().size() == data.items.size()
+        && data.stockChanges.keys().size() <= 50
+        && data.totalAmount is number
+          && data.totalAmount >= 0 && data.totalAmount <= 1000000000000
+        && data.paymentMethod in ['cash', 'qris']
+        && data.createdAt is timestamp;
+    }
+
+    function validStockLog(data) {
+      return data.keys().hasOnly([
+          'businessId', 'productId', 'userId', 'type',
+          'quantity', 'note', 'createdAt'
+        ])
+        && data.keys().hasAll([
+          'businessId', 'productId', 'userId', 'type',
+          'quantity', 'note', 'createdAt'
+        ])
+        && data.businessId is string && data.businessId.size() <= 128
+        && data.productId is string && data.productId.size() <= 128
+        && data.userId == request.auth.uid
+        && data.type in ['in', 'out']
+        && data.quantity is int && data.quantity > 0 && data.quantity <= 100000000
+        && data.note is string && data.note.size() <= 300
+        && data.createdAt is timestamp;
+    }
+
+    function validPayment(data) {
+      return data.keys().hasOnly([
+          'businessId', 'tier', 'amount', 'proofNote', 'status',
+          'proofImagePath', 'submittedAt', 'approvedAt', 'reviewedBy'
+        ])
+        && data.keys().hasAll([
+          'businessId', 'tier', 'amount', 'proofNote', 'status',
+          'submittedAt', 'approvedAt'
+        ])
+        && data.businessId is string && data.businessId.size() <= 128
+        && data.tier in ['50k', '250k', '400k']
+        && ((data.tier == '50k' && data.amount == 50000)
+          || (data.tier == '250k' && data.amount == 250000)
+          || (data.tier == '400k' && data.amount == 400000))
+        && data.proofNote is string && data.proofNote.size() <= 300
+        && ((data.proofNote.size() > 0)
+          || ('proofImagePath' in data
+            && data.proofImagePath is string
+            && data.proofImagePath.size() <= 300))
+        && (!('proofImagePath' in data)
+          || (data.proofImagePath is string
+            && data.proofImagePath.matches(
+              'membership-payment-proofs/[^/]+/[^/]+'
+            )))
+        && data.status == 'pending'
+        && data.submittedAt is timestamp
+        && data.approvedAt == null
+        && (!('reviewedBy' in data)
+          || (data.reviewedBy is string && data.reviewedBy.size() <= 128));
+    }
+
+    function validPaymentUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedAt', 'reviewedBy'])
+        && request.resource.data.businessId == resource.data.businessId
+        && request.resource.data.tier == resource.data.tier
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.proofNote == resource.data.proofNote
+        && request.resource.data.submittedAt == resource.data.submittedAt
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && (request.resource.data.status == 'approved'
+          ? request.resource.data.approvedAt == request.time
+          : request.resource.data.approvedAt == null);
+    }
+
+    function validAdminActivation(businessId) {
+      let paymentPath = /databases/$(database)/documents/membership_payments/$(resource.data.pendingPaymentId);
+      let payment = getAfter(paymentPath).data;
+      return resource.data.pendingPaymentId is string
+        && payment.businessId == businessId
+        && payment.tier == resource.data.membershipTier
+        && payment.status == 'approved'
+        && validMembershipPeriod(
+          payment.tier,
+          request.resource.data.membershipStartDate,
+          request.resource.data.membershipEndDate
+        );
+    }
+
+    function validMembershipPeriod(tier, startDate, endDate) {
+      return startDate is timestamp
+        && endDate is timestamp
+        && (
+          (tier == '50k'
+            && endDate > startDate + duration.value(27, 'd')
+            && endDate <= startDate + duration.value(32, 'd'))
+          || (tier in ['250k', '100k']
+            && endDate > startDate + duration.value(175, 'd')
+            && endDate <= startDate + duration.value(190, 'd'))
+          || (tier in ['400k', '200k']
+            && endDate > startDate + duration.value(360, 'd')
+            && endDate <= startDate + duration.value(370, 'd'))
+        );
+    }
+
+    function validAdminBusinessUpdate(businessId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return validBusiness(request.resource.data)
+        && changed.hasOnly([
+          'membershipStatus', 'membershipStartDate', 'membershipEndDate'
+        ])
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.membershipTier == resource.data.membershipTier
+        && request.resource.data.maxKasirAccounts == resource.data.maxKasirAccounts
+        && request.resource.data.maxStokAccounts == resource.data.maxStokAccounts
+        && request.resource.data.activeKasirAccounts
+          == resource.data.activeKasirAccounts
+        && request.resource.data.activeStokAccounts == resource.data.activeStokAccounts
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.seatChangeUid == resource.data.seatChangeUid
+        && request.resource.data.pendingPaymentId == resource.data.pendingPaymentId
+        && (
+          (request.resource.data.membershipStatus in ['inactive', 'expired']
+            && request.resource.data.membershipStartDate
+              == resource.data.membershipStartDate
+            && request.resource.data.membershipEndDate == resource.data.membershipEndDate)
+          || (request.resource.data.membershipStatus == 'active'
+            && request.resource.data.membershipStartDate == request.time
+            && request.resource.data.membershipEndDate is timestamp
+            && request.resource.data.membershipEndDate > request.time
+            && validAdminActivation(businessId))
+        );
+    }
+
+    function validAdminDeleteLock() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return validBusiness(request.resource.data)
+        && changed.hasOnly(['isDeleting'])
+        && request.resource.data.isDeleting == true;
+    }
+
+    function validMembershipRequest(businessId) {
+      let paymentPath = /databases/$(database)/documents/membership_payments/$(request.resource.data.pendingPaymentId);
+      let payment = getAfter(paymentPath).data;
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly([
+            'membershipStatus', 'membershipTier', 'maxKasirAccounts',
+            'maxStokAccounts', 'pendingPaymentId'
+          ])
+        && request.resource.data.membershipStatus == 'pending'
+        && resource.data.membershipStatus != 'active'
+        && request.resource.data.membershipTier in ['50k', '250k', '400k']
+        && request.resource.data.maxKasirAccounts
+          == (request.resource.data.membershipTier == '50k' ? 2
+            : request.resource.data.membershipTier == '250k' ? 6 : 20)
+        && request.resource.data.maxStokAccounts
+          == (request.resource.data.membershipTier == '50k' ? 2
+            : request.resource.data.membershipTier == '250k' ? 6 : 20)
+        && request.resource.data.pendingPaymentId is string
+        && payment.businessId == businessId
+        && payment.tier == request.resource.data.membershipTier
+        && payment.status == 'pending';
+    }
+
+    function validCounterUpdate(businessId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let changedUid = request.resource.data.seatChangeUid;
+      let nextUser = getAfter(userPath(changedUid)).data;
+      let hasPreviousUser = exists(userPath(changedUid));
+      let previousUserActive = hasPreviousUser
+        ? get(userPath(changedUid)).data.isActive
+        : false;
+      let cashierCount = request.resource.data.activeKasirAccounts;
+      let stockCount = request.resource.data.activeStokAccounts;
+      return request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.seatChangeUid is string
+        && request.resource.data.seatChangeUid.size() <= 128
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.membershipTier == resource.data.membershipTier
+        && request.resource.data.maxKasirAccounts == resource.data.maxKasirAccounts
+        && request.resource.data.maxStokAccounts == resource.data.maxStokAccounts
+        && request.resource.data.membershipStatus == resource.data.membershipStatus
+        && request.resource.data.membershipStartDate == resource.data.membershipStartDate
+        && request.resource.data.membershipEndDate == resource.data.membershipEndDate
+        && request.resource.data.pendingPaymentId == resource.data.pendingPaymentId
+        && (
+          (changed.hasOnly(['activeKasirAccounts', 'seatChangeUid'])
+            && nextUser.businessId == businessId
+            && nextUser.role == 'kasir'
+            && cashierCount >= 0
+            && cashierCount <= request.resource.data.maxKasirAccounts
+            && ((cashierCount == resource.data.activeKasirAccounts + 1
+                && nextUser.isActive == true
+                && (!hasPreviousUser || previousUserActive == false))
+              || (cashierCount == resource.data.activeKasirAccounts - 1
+                && hasPreviousUser
+                && previousUserActive == true
+                && nextUser.isActive == false)))
+          || (changed.hasOnly(['activeStokAccounts', 'seatChangeUid'])
+            && nextUser.businessId == businessId
+            && nextUser.role == 'staf_stok'
+            && stockCount >= 0
+            && stockCount <= request.resource.data.maxStokAccounts
+            && ((stockCount == resource.data.activeStokAccounts + 1
+                && nextUser.isActive == true
+                && (!hasPreviousUser || previousUserActive == false))
+              || (stockCount == resource.data.activeStokAccounts - 1
+                && hasPreviousUser
+                && previousUserActive == true
+                && nextUser.isActive == false)))
+        );
+    }
+
+    function validStockAdjustment(productId, businessId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let logId = request.resource.data.lastStockLogId;
+      let logPath = /databases/$(database)/documents/stock_logs/$(logId);
+      let log = getAfter(logPath).data;
+      return changed.hasOnly(['stock', 'updatedAt', 'lastStockLogId'])
+        && request.resource.data.businessId == resource.data.businessId
+        && request.resource.data.barcode == resource.data.barcode
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.price == resource.data.price
+        && request.resource.data.costPrice == resource.data.costPrice
+        && request.resource.data.unit == resource.data.unit
+        && samePackSize()
+        && request.resource.data.category == resource.data.category
+        && request.resource.data.minStock == resource.data.minStock
+        && request.resource.data.createdAt == resource.data.createdAt
+        && log.businessId == businessId
+        && log.productId == productId
+        && log.userId == request.auth.uid
+        && logId is string
+        && log.type in ['in', 'out']
+        && ((log.type == 'in'
+              && request.resource.data.stock == resource.data.stock + log.quantity)
+          || (log.type == 'out'
+              && request.resource.data.stock == resource.data.stock - log.quantity));
+    }
+
+    function validSaleAdjustment(productId, businessId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let transactionId = request.resource.data.lastTransactionId;
+      let salePath = /databases/$(database)/documents/transactions/$(transactionId);
+      let sale = getAfter(salePath).data;
+      return changed.hasOnly(['stock', 'updatedAt', 'lastTransactionId'])
+        && request.resource.data.businessId == resource.data.businessId
+        && request.resource.data.barcode == resource.data.barcode
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.price == resource.data.price
+        && request.resource.data.costPrice == resource.data.costPrice
+        && request.resource.data.unit == resource.data.unit
+        && samePackSize()
+        && request.resource.data.category == resource.data.category
+        && request.resource.data.minStock == resource.data.minStock
+        && request.resource.data.createdAt == resource.data.createdAt
+        && sale.businessId == businessId
+        && sale.cashierId == request.auth.uid
+        && sale.stockChanges is map
+        && sale.stockChanges[productId] is int
+        && sale.stockChanges[productId]
+          == resource.data.stock - request.resource.data.stock
+        && request.resource.data.stock < resource.data.stock
+        && request.resource.data.stock >= 0;
+    }
+
+    function canUpdateProduct(productId) {
+      let businessId = resource.data.businessId;
+      let userRef = userPath(request.auth.uid);
+      let businessRef = businessPath(businessId);
+      let user = get(userRef).data;
+      let business = get(businessRef).data;
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let isOwner = user.role == 'owner'
+        && business.ownerId == request.auth.uid;
+      let isStockWorker = user.role == 'staf_stok';
+      let isCashier = user.role == 'kasir';
+      let metadataOnly = changed.hasOnly([
+        'barcode', 'name', 'price', 'costPrice', 'unit',
+        'piecesPerPack', 'category', 'minStock', 'updatedAt'
+      ]) && request.resource.data.stock == resource.data.stock;
+      return exists(userRef)
+        && exists(businessRef)
+        && user.businessId == businessId
+        && user.isActive == true
+        && (!('isBanned' in user) || user.isBanned == false)
+        && (!('isDeleting' in business) || business.isDeleting == false)
+        && validProductUpdate(request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.businessId == businessId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (
+          (isOwner && metadataOnly)
+          || (isStockWorker && (
+            metadataOnly
+            || (changed.hasAny(['lastStockLogId'])
+              && validStockAdjustment(productId, businessId))
+          ))
+          || (isOwner && changed.hasAny(['lastStockLogId'])
+            && validStockAdjustment(productId, businessId))
+          || ((isCashier || isOwner)
+            && changed.hasAny(['lastTransactionId'])
+            && validSaleAdjustment(productId, businessId))
+        );
+    }
+
+    function samePackSize() {
+      return (
+          !('piecesPerPack' in resource.data)
+          && !('piecesPerPack' in request.resource.data)
+        )
+        || (
+          'piecesPerPack' in resource.data
+          && 'piecesPerPack' in request.resource.data
+          && request.resource.data.piecesPerPack
+            == resource.data.piecesPerPack
+        );
+    }
+
+    // Business records contain no employee PII; only tenant members can read them.
+    match /businesses/{businessId} {
+      allow get: if isAdmin() || hasTenantProfile(businessId);
+      allow list: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && validBusiness(request.resource.data)
+        && request.resource.data.membershipTier == 'none'
+        && request.resource.data.membershipStatus == 'inactive'
+        && request.resource.data.isDeleting == false
+        && request.resource.data.createdAt == request.time
+        && getAfter(userPath(request.auth.uid)).data.businessId == businessId
+        && getAfter(userPath(request.auth.uid)).data.role == 'owner';
+      allow update: if (isBusinessOwner(businessId)
+          && validBusiness(request.resource.data)
+          && (
+            validMembershipRequest(businessId)
+            || (request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly([
+                  'activeKasirAccounts', 'activeStokAccounts', 'seatChangeUid'
+                ])
+              && validCounterUpdate(businessId))
+          ))
+        || (isAdmin() && validAdminBusinessUpdate(businessId))
+        || (isAdmin() && validAdminDeleteLock());
+      allow delete: if isDeletingBusiness(businessId)
+        && resource.data.isDeleting == true;
+    }
+
+    // User documents intentionally omit email and other private contact details.
+    match /users/{userId} {
+      allow get, list: if isAdmin()
+        || (signedIn() && userExists(request.auth.uid)
+          && resource.data.businessId == currentUser().businessId
+          && (userId == request.auth.uid
+            || isBusinessOwner(currentUser().businessId)));
+      allow create: if signedIn()
+        && validUser(request.resource.data)
+        && request.resource.data.isActive == true
+        && (!('isBanned' in request.resource.data)
+          || request.resource.data.isBanned == false)
+        && request.resource.data.createdAt == request.time
+        && (
+          (userId == request.auth.uid
+            && request.resource.data.role == 'owner'
+            && getAfter(businessPath(request.resource.data.businessId)).data.ownerId
+              == request.auth.uid)
+          || (isBusinessOwner(request.resource.data.businessId)
+            && request.resource.data.role in ['kasir', 'staf_stok']
+            && getAfter(businessPath(request.resource.data.businessId))
+              .data.membershipStatus == 'active'
+            && (
+              (request.resource.data.role == 'kasir'
+                && getAfter(businessPath(request.resource.data.businessId))
+                  .data.seatChangeUid == userId
+                && getAfter(businessPath(request.resource.data.businessId))
+                  .data.activeKasirAccounts
+                  == get(businessPath(request.resource.data.businessId))
+                    .data.activeKasirAccounts + 1)
+              || (request.resource.data.role == 'staf_stok'
+                && getAfter(businessPath(request.resource.data.businessId))
+                  .data.seatChangeUid == userId
+                && getAfter(businessPath(request.resource.data.businessId))
+                  .data.activeStokAccounts
+                  == get(businessPath(request.resource.data.businessId))
+                    .data.activeStokAccounts + 1)
+            ))
+        );
+      allow update: if (isBusinessOwner(resource.data.businessId)
+          && validUser(request.resource.data)
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isActive'])
+          && request.resource.data.isActive is bool
+          && getAfter(businessPath(resource.data.businessId)).data.seatChangeUid
+            == userId
+          && (
+            (request.resource.data.isActive
+              && getAfter(businessPath(resource.data.businessId))
+                .data.membershipStatus == 'active')
+            || !request.resource.data.isActive
+          )
+          && (
+            (resource.data.role == 'kasir'
+              && getAfter(businessPath(resource.data.businessId))
+                .data.activeKasirAccounts
+                == get(businessPath(resource.data.businessId)).data.activeKasirAccounts
+                  + (request.resource.data.isActive ? 1 : -1))
+            || (resource.data.role == 'staf_stok'
+              && getAfter(businessPath(resource.data.businessId))
+                .data.activeStokAccounts
+                == get(businessPath(resource.data.businessId)).data.activeStokAccounts
+                  + (request.resource.data.isActive ? 1 : -1))
+          ))
+        || (isDeletingBusiness(resource.data.businessId)
+          && validUser(request.resource.data)
+          && request.resource.data.businessId == resource.data.businessId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isBanned'])
+          && request.resource.data.isBanned == true);
+      allow delete: if false;
+    }
+
+    match /products/{productId} {
+      allow get, list: if isAdmin() || belongsTo(resource.data.businessId);
+      allow create: if signedIn()
+        && (hasRole(request.resource.data.businessId, 'owner')
+          || hasRole(request.resource.data.businessId, 'staf_stok'))
+        && validNewProduct(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if signedIn() && canUpdateProduct(productId);
+      allow delete: if isBusinessOwner(resource.data.businessId)
+        || isDeletingBusiness(resource.data.businessId);
+    }
+
+    match /transactions/{transactionId} {
+      allow get, list: if isAdmin()
+        || (belongsTo(resource.data.businessId)
+          && (currentUser().role == 'owner'
+            || (currentUser().role == 'kasir'
+              && resource.data.cashierId == request.auth.uid)));
+      allow create: if signedIn()
+        && hasTenantRole(request.resource.data.businessId, ['owner', 'kasir'])
+        && validTransaction(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isDeletingBusiness(resource.data.businessId);
+    }
+
+    match /stock_logs/{logId} {
+      allow get, list: if isAdmin()
+        || (belongsTo(resource.data.businessId)
+          && (currentUser().role == 'owner'
+            || currentUser().role == 'staf_stok'));
+      allow create: if (hasRole(request.resource.data.businessId, 'staf_stok')
+          || isBusinessOwner(request.resource.data.businessId))
+        && validStockLog(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && getAfter(
+          /databases/$(database)/documents/products/$(request.resource.data.productId)
+        ).data.lastStockLogId == logId;
+      allow update: if false;
+      allow delete: if isDeletingBusiness(resource.data.businessId);
+    }
+
+    match /membership_payments/{paymentId} {
+      allow get, list: if isAdmin()
+        || isBusinessOwner(resource.data.businessId);
+      allow create: if isBusinessOwner(request.resource.data.businessId)
+        && validPayment(request.resource.data)
+        && request.resource.data.submittedAt == request.time
+        && getAfter(businessPath(request.resource.data.businessId))
+          .data.membershipStatus == 'pending';
+      allow update: if isAdmin() && validPaymentUpdate();
+      allow delete: if isDeletingBusiness(resource.data.businessId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

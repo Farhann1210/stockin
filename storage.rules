@@ -1,0 +1,46 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userProfile() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && userProfile().role == 'admin'
+        && userProfile().isActive == true;
+    }
+
+    function isBusinessOwner(businessId) {
+      return signedIn()
+        && userProfile().businessId == businessId
+        && userProfile().role == 'owner'
+        && userProfile().isActive == true
+        && (!('isBanned' in userProfile())
+          || userProfile().isBanned == false)
+        && firestore.get(
+          /databases/(default)/documents/businesses/$(businessId)
+        ).data.ownerId == request.auth.uid
+        && (!('isDeleting' in firestore.get(
+          /databases/(default)/documents/businesses/$(businessId)
+        ).data)
+          || firestore.get(
+            /databases/(default)/documents/businesses/$(businessId)
+          ).data.isDeleting == false);
+    }
+
+    match /membership-payment-proofs/{businessId}/{paymentId} {
+      allow read: if isAdmin() || isBusinessOwner(businessId);
+      allow create, update: if isBusinessOwner(businessId)
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if isAdmin() || isBusinessOwner(businessId);
+    }
+  }
+}
