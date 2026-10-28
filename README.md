@@ -1,14 +1,14 @@
-# Stockin
+# Stokin
 
-Stockin is an Android-first Flutter POS and inventory MVP backed by Firebase
+Stokin is an Android-first Flutter POS and inventory MVP backed by Firebase
 Authentication, Cloud Firestore, and Firebase Storage. Each registered
 business is a separate tenant. The app uses Provider, `mobile_scanner`,
 `image_picker`, `intl`, and `uuid`.
 
-On first launch, Stockin shows a five-screen introduction, then opens the
+On first launch, Stokin shows a five-screen introduction, then opens the
 existing role-based sign-in flow. Owners register businesses; owners create
 cashier and stock-worker accounts. Signed-in users can open their profile,
-send feedback to the Stockin admin dashboard, and submit an account-deletion
+send feedback to the Stokin admin dashboard, and submit an account-deletion
 request. Feedback and requests are stored in the `support_requests` Firestore
 collection.
 
@@ -41,7 +41,7 @@ admins reviewing a request. A payment document and the pending tier/seat
 limits are saved together. The available plans are
 Rp50,000 for 1 month (2 cashier + 2 stock accounts), Rp250,000 for 6 months
 (6 + 6 accounts), and Rp400,000 for 1 year (20 + 20 accounts). Admins can
-review requests in the Stockin admin dashboard, activate the selected plan for
+review requests in the Stokin admin dashboard, activate the selected plan for
 its calendar duration, reject requests, and mark memberships inactive or
 expired.
 Admins can permanently delete a business and its products, transactions, stock

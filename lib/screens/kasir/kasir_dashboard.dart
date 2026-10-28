@@ -23,7 +23,7 @@ class KasirDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(ownerMode ? 'Kasir' : 'Kasir Stockin'),
+      title: Text(ownerMode ? 'Kasir' : 'Kasir Stokin'),
       actions: [
         if (!ownerMode) ...[
           IconButton(

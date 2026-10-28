@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   'assets/images/stockin_logo.png',
                   height: 190,
                   fit: BoxFit.contain,
-                  semanticLabel: 'Logo Stockin',
+                  semanticLabel: 'Logo Stokin',
                 ),
                 const SizedBox(height: 12),
                 const Text(

@@ -30,7 +30,7 @@ class StockinApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Stockin',
+      title: 'Stokin',
       debugShowCheckedModeBanner: false,
       theme: StockinTheme.light,
       home: const OnboardingGate(),

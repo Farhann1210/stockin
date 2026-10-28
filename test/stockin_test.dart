@@ -80,13 +80,13 @@ void main() {
       ),
     );
 
-    expect(find.text('Kenali Stockin'), findsOneWidget);
+    expect(find.text('Kenali Stokin'), findsOneWidget);
     for (var page = 0; page < 4; page++) {
       await tester.tap(find.text('Lanjut'));
       await tester.pumpAndSettle();
     }
 
-    expect(find.text('Mulai bersama Stockin'), findsOneWidget);
+    expect(find.text('Mulai bersama Stokin'), findsOneWidget);
     await tester.tap(find.text('Mulai'));
     await tester.pumpAndSettle();
     expect(completed, isTrue);
@@ -98,10 +98,10 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('Logo Stockin'), findsOneWidget);
+    expect(find.bySemanticsLabel('Logo Stokin'), findsOneWidget);
     await tester.tap(find.text('On Boarding'));
     await tester.pumpAndSettle();
-    expect(find.text('Kenali Stockin'), findsOneWidget);
+    expect(find.text('Kenali Stokin'), findsOneWidget);
 
     await tester.tap(find.text('Lewati'));
     await tester.pumpAndSettle();

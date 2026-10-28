@@ -75,7 +75,7 @@ Future<void> confirmSignOut(
   final accepted = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Keluar dari Stockin?'),
+      title: const Text('Keluar dari Stokin?'),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),

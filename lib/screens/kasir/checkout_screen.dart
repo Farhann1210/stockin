@@ -273,7 +273,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Kasir Stockin'),
+          title: const Text('Kasir Stokin'),
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.point_of_sale), text: 'Kasir & Checkout'),

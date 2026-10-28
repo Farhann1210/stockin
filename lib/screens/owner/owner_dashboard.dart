@@ -69,7 +69,7 @@ class OwnerDashboard extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Stockin')),
+            appBar: AppBar(title: const Text('Stokin')),
             body: Center(
               child: Text('Gagal memuat data usaha: ${snapshot.error}'),
             ),

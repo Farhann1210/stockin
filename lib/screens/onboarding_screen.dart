@@ -51,12 +51,12 @@ class _OnboardingGateState extends State<OnboardingGate> {
         );
       }
       if (!snapshot.hasData) {
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
       final isComplete =
-          _completed ?? snapshot.data!.getBool(_onboardingCompletedKey) ?? false;
+          _completed ??
+          snapshot.data!.getBool(_onboardingCompletedKey) ??
+          false;
       if (isComplete) return const AppRouter();
       return OnboardingScreen(
         onComplete: () async {
@@ -92,7 +92,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     _OnboardingPageData(
       icon: Icons.storefront_outlined,
-      title: 'Kenali Stockin',
+      title: 'Kenali Stokin',
       description: 'Kelola usaha dari satu tempat dengan lebih praktis.',
     ),
     _OnboardingPageData(
@@ -112,8 +112,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
     _OnboardingPageData(
       icon: Icons.rocket_launch_outlined,
-      title: 'Mulai bersama Stockin',
-      description: 'Masuk atau daftarkan usaha Anda untuk mulai menggunakan '
+      title: 'Mulai bersama Stokin',
+      description:
+          'Masuk atau daftarkan usaha Anda untuk mulai menggunakan '
           'fitur kasir dan manajemen stok.',
     ),
   ];
@@ -181,9 +182,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         children: [
                           CircleAvatar(
                             radius: 62,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primaryContainer,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer,
                             child: Icon(
                               page.icon,
                               size: 58,
@@ -232,7 +233,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Text(
                     _error!,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               Padding(

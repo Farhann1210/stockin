@@ -1,11 +1,11 @@
 {
-    "name": "Stockin",
-    "short_name": "Stockin",
+    "name": "Stokin",
+    "short_name": "Stokin",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#FFFFFF",
-    "description": "Aplikasi manajemen stok dan kasir Stockin.",
+    "description": "Aplikasi manajemen stok dan kasir Stokin.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

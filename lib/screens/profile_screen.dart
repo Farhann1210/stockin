@@ -69,12 +69,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(isOwner ? 'Ajukan penghapusan usaha?' : 'Hapus akun?'),
         content: Text(
           isOwner
-              ? 'Permintaan akan dikirim ke Admin Stockin. Jika disetujui, '
+              ? 'Permintaan akan dikirim ke Admin Stokin. Jika disetujui, '
                     'data usaha, produk, transaksi, riwayat stok, dan '
                     'membership akan dihapus serta profil pengguna diblokir. '
                     'Identitas Firebase Auth tetap disimpan dan tidak dapat '
                     'digunakan selama profil diblokir.'
-              : 'Permintaan akan dikirim ke Admin Stockin untuk diproses. '
+              : 'Permintaan akan dikirim ke Admin Stokin untuk diproses. '
                     'Akun tidak langsung dihapus saat ini. Admin perlu '
                     'menghapus identitas Firebase Auth secara manual.',
         ),
@@ -100,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         showAppMessage(
           context,
-          'Permintaan penghapusan berhasil dikirim ke Admin Stockin.',
+          'Permintaan penghapusan berhasil dikirim ke Admin Stokin.',
         );
       }
     } catch (error) {

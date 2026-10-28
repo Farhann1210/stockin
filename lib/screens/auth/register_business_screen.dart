@@ -76,7 +76,7 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
                     'assets/images/stockin_logo.png',
                     height: 160,
                     fit: BoxFit.contain,
-                    semanticLabel: 'Logo Stockin',
+                    semanticLabel: 'Logo Stokin',
                   ),
                   const SizedBox(height: 12),
                   _field(_business, 'Nama usaha'),

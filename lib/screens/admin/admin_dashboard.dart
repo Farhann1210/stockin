@@ -24,7 +24,7 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Admin Stockin'),
+      title: const Text('Admin Stokin'),
       actions: [
         IconButton(
           tooltip: 'Profil',
