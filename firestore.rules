@@ -364,6 +364,49 @@ service cloud.firestore {
         && request.resource.data.isDeleting == true;
     }
 
+    function validSupportRequest(data) {
+      let requestType = data.requestType;
+      return signedIn()
+        && userExists(request.auth.uid)
+        && currentUser().isActive == true
+        && (!('isBanned' in currentUser())
+          || currentUser().isBanned == false)
+        && data.keys().hasOnly([
+          'requestType', 'userId', 'businessId', 'role', 'email',
+          'message', 'status', 'createdAt'
+        ])
+        && data.keys().hasAll([
+          'requestType', 'userId', 'businessId', 'role', 'email',
+          'message', 'status', 'createdAt'
+        ])
+        && requestType in [
+          'feedback', 'account_deletion', 'business_deletion'
+        ]
+        && data.userId == request.auth.uid
+        && data.businessId == currentUser().businessId
+        && data.role == currentUser().role
+        && (data.email == null
+          || (data.email is string && data.email.size() <= 254))
+        && data.message is string
+        && data.message.size() <= 2000
+        && data.status == 'pending'
+        && data.createdAt == request.time
+        && (
+          (requestType == 'feedback' && data.message.size() > 0)
+          || (requestType == 'account_deletion'
+            && currentUser().role != 'owner'
+            && data.message.size() == 0)
+          || (requestType == 'business_deletion'
+            && currentUser().role == 'owner'
+            && isBusinessOwner(currentUser().businessId)
+            && data.message.size() == 0)
+        )
+        && (
+          !('email' in request.auth.token)
+          || data.email == request.auth.token.email
+        );
+    }
+
     function validMembershipRequest(businessId) {
       let paymentPath = /databases/$(database)/documents/membership_payments/$(request.resource.data.pendingPaymentId);
       let payment = getAfter(paymentPath).data;
@@ -702,6 +745,19 @@ service cloud.firestore {
           .data.membershipStatus == 'pending';
       allow update: if isAdmin() && validPaymentUpdate();
       allow delete: if isDeletingBusiness(resource.data.businessId);
+    }
+
+    match /support_requests/{requestId} {
+      allow create: if validSupportRequest(request.resource.data);
+      allow get, list: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'resolvedAt', 'resolvedBy'])
+        && request.resource.data.status == 'completed'
+        && request.resource.data.resolvedAt == request.time
+        && request.resource.data.resolvedBy == request.auth.uid;
+      allow delete: if false;
     }
 
     match /{document=**} {

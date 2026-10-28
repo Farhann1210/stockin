@@ -4,6 +4,7 @@ const productsCollection = 'products';
 const transactionsCollection = 'transactions';
 const stockLogsCollection = 'stock_logs';
 const membershipPaymentsCollection = 'membership_payments';
+const supportRequestsCollection = 'support_requests';
 const maxMembershipProofImageBytes = 5 * 1024 * 1024;
 
 class MembershipTier {

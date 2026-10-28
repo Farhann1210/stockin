@@ -72,7 +72,14 @@ class _RegisterBusinessScreenState extends State<RegisterBusinessScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _field(_business, 'Nama usaha'),
+                  Image.asset(
+                    'assets/images/stockin_logo.png',
+                    height: 160,
+                    fit: BoxFit.contain,
+                    semanticLabel: 'Logo Stockin',
+                  ),
+                  const SizedBox(height: 12),
+                  _field(_business, 'Nama usaha'),
                 _field(_owner, 'Nama pemilik'),
                 _field(_email, 'Email', email: true),
                 _field(_password, 'Kata sandi (min. 6 karakter)', secret: true),

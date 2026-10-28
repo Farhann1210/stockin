@@ -5,6 +5,19 @@ Authentication, Cloud Firestore, and Firebase Storage. Each registered
 business is a separate tenant. The app uses Provider, `mobile_scanner`,
 `image_picker`, `intl`, and `uuid`.
 
+On first launch, Stockin shows a five-screen introduction, then opens the
+existing role-based sign-in flow. Owners register businesses; owners create
+cashier and stock-worker accounts. Signed-in users can open their profile,
+send feedback to the Stockin admin dashboard, and submit an account-deletion
+request. Feedback and requests are stored in the `support_requests` Firestore
+collection.
+
+Admins review feedback and account-deletion requests in the admin dashboard.
+An owner request deletes the business's Firestore data and bans its user
+profiles, but Firebase Authentication identities are retained. Individual
+account-deletion requests must be completed manually in Firebase
+Authentication before the admin marks them complete.
+
 ## Firebase project
 
 The Android app is configured for Firebase project `stockin-1de1f` in
@@ -51,6 +64,13 @@ business and active admins. Enable the project's Storage bucket before using
 image uploads, and deploy the Firestore and Storage rules with
 `firebase deploy --only firestore:rules,storage`. Each transaction retains the
 cashier UID for access control and stores the cashier's name for display.
+
+Deploy updated Firestore rules before using feedback or account-deletion
+requests:
+
+```powershell
+firebase deploy --only firestore:rules
+```
 
 Review and test the prototype rules against your operational needs before
 deploying them to a live database. In particular, complete sale line-item

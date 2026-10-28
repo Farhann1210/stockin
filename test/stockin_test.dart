@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:stockin/core/constants.dart';
 import 'package:stockin/models/user_model.dart';
+import 'package:stockin/screens/auth/login_screen.dart';
 import 'package:stockin/screens/common.dart';
+import 'package:stockin/screens/onboarding_screen.dart';
 
 void main() {
   test('membership tiers match the published employee seat limits', () {
@@ -61,5 +64,47 @@ void main() {
 
     expect(oldProfile.isBanned, isFalse);
     expect(bannedProfile.isBanned, isTrue);
+  });
+
+  testWidgets('onboarding has five screens and completes from the last one', (
+    tester,
+  ) async {
+    var completed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OnboardingScreen(
+          onComplete: () async {
+            completed = true;
+          },
+        ),
+      ),
+    );
+
+    expect(find.text('Kenali Stockin'), findsOneWidget);
+    for (var page = 0; page < 4; page++) {
+      await tester.tap(find.text('Lanjut'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('Mulai bersama Stockin'), findsOneWidget);
+    await tester.tap(find.text('Mulai'));
+    await tester.pumpAndSettle();
+    expect(completed, isTrue);
+  });
+
+  testWidgets('login can reopen onboarding and return to login', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('Logo Stockin'), findsOneWidget);
+    await tester.tap(find.text('On Boarding'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kenali Stockin'), findsOneWidget);
+
+    await tester.tap(find.text('Lewati'));
+    await tester.pumpAndSettle();
+    expect(find.text('Masuk'), findsOneWidget);
   });
 }

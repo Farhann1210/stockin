@@ -10,6 +10,7 @@ import '../../services/business_service.dart';
 import '../../services/product_service.dart';
 import '../common.dart';
 import '../kasir/kasir_dashboard.dart';
+import '../profile_screen.dart';
 import '../stok/stok_dashboard.dart';
 import '../owner/manage_employees_screen.dart';
 import 'membership_screen.dart';
@@ -84,6 +85,16 @@ class OwnerDashboard extends StatelessWidget {
           appBar: AppBar(
             title: Text(business.name),
             actions: [
+              IconButton(
+                tooltip: 'Profil',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ProfileScreen(profile: profile),
+                  ),
+                ),
+                icon: const Icon(Icons.account_circle_outlined),
+              ),
               IconButton(
                 tooltip: 'Keluar',
                 onPressed: () => confirmSignOut(

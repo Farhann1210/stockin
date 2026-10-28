@@ -6,6 +6,7 @@ import '../../core/constants.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../common.dart';
+import '../profile_screen.dart';
 import 'checkout_screen.dart';
 
 class KasirDashboard extends StatelessWidget {
@@ -24,12 +25,23 @@ class KasirDashboard extends StatelessWidget {
     appBar: AppBar(
       title: Text(ownerMode ? 'Kasir' : 'Kasir Stockin'),
       actions: [
-        if (!ownerMode)
+        if (!ownerMode) ...[
+          IconButton(
+            tooltip: 'Profil',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => ProfileScreen(profile: profile),
+              ),
+            ),
+            icon: const Icon(Icons.account_circle_outlined),
+          ),
           IconButton(
             onPressed: () =>
                 confirmSignOut(context, context.read<AuthProvider>().logout),
             icon: const Icon(Icons.logout),
           ),
+        ],
       ],
     ),
     body: ListView(

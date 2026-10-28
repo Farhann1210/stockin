@@ -7,7 +7,7 @@ import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/business_provider.dart';
-import 'screens/app_router.dart';
+import 'screens/onboarding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +33,7 @@ class StockinApp extends StatelessWidget {
       title: 'Stockin',
       debugShowCheckedModeBanner: false,
       theme: StockinTheme.light,
-      home: const AppRouter(),
+      home: const OnboardingGate(),
     );
   }
 }

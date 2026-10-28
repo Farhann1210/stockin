@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../onboarding_screen.dart';
 import 'register_business_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -82,18 +83,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
-                  Icons.storefront_outlined,
-                  size: 64,
-                  color: Color(0xff087f5b),
+                Image.asset(
+                  'assets/images/stockin_logo.png',
+                  height: 190,
+                  fit: BoxFit.contain,
+                  semanticLabel: 'Logo Stockin',
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  'Stockin',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 4),
                 const Text(
                   'Kasir dan stok usaha dalam satu aplikasi',
                   textAlign: TextAlign.center,
@@ -149,6 +145,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                   child: const Text('Daftarkan usaha baru'),
+                ),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => OnboardingScreen(
+                              onComplete: () async {
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          ),
+                        ),
+                  child: const Text('On Boarding'),
                 ),
               ],
             ),

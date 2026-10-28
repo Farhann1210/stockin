@@ -10,6 +10,7 @@ import '../../services/product_service.dart';
 import '../../services/stock_service.dart';
 import '../common.dart';
 import '../owner/manage_products_screen.dart';
+import '../profile_screen.dart';
 import '../product_picker_sheet.dart';
 
 class StokDashboard extends StatelessWidget {
@@ -30,13 +31,24 @@ class StokDashboard extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Manajemen Stok'),
         actions: [
-          if (!ownerMode)
+          if (!ownerMode) ...[
+            IconButton(
+              tooltip: 'Profil',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ProfileScreen(profile: profile),
+                ),
+              ),
+              icon: const Icon(Icons.account_circle_outlined),
+            ),
             IconButton(
               tooltip: 'Keluar',
               onPressed: () =>
                   confirmSignOut(context, context.read<AuthProvider>().logout),
               icon: const Icon(Icons.logout),
             ),
+          ],
         ],
         bottom: const TabBar(
           tabs: [

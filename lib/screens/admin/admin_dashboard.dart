@@ -8,10 +8,13 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../models/business_model.dart';
 import '../../models/membership_payment_model.dart';
+import '../../models/support_request_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/membership_admin_service.dart';
+import '../../services/support_service.dart';
 import '../common.dart';
+import '../profile_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key, required this.profile});
@@ -23,6 +26,16 @@ class AdminDashboard extends StatelessWidget {
     appBar: AppBar(
       title: const Text('Admin Stockin'),
       actions: [
+        IconButton(
+          tooltip: 'Profil',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => ProfileScreen(profile: profile),
+            ),
+          ),
+          icon: const Icon(Icons.account_circle_outlined),
+        ),
         IconButton(
           tooltip: 'Keluar',
           onPressed: () =>
@@ -126,6 +139,8 @@ class AdminDashboard extends StatelessWidget {
                   ),
                 for (final business in businesses)
                   _BusinessCard(business: business),
+                const SizedBox(height: 24),
+                const _SupportRequestsSection(),
               ],
             );
           },
@@ -133,6 +148,192 @@ class AdminDashboard extends StatelessWidget {
       },
     ),
   );
+}
+
+class _SupportRequestsSection extends StatelessWidget {
+  const _SupportRequestsSection();
+
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<List<SupportRequestModel>>(
+        stream: SupportService().watchRequests(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Card(
+              child: ListTile(
+                title: Text('Gagal memuat permintaan: ${snapshot.error}'),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final pending = snapshot.data!
+              .where((request) => request.status == 'pending')
+              .toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Feedback & Penghapusan Akun',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              if (pending.isEmpty)
+                const Card(
+                  child: ListTile(
+                    title: Text('Tidak ada permintaan yang menunggu.'),
+                  ),
+                ),
+              for (final request in pending)
+                _SupportRequestCard(request: request),
+            ],
+          );
+        },
+      );
+}
+
+class _SupportRequestCard extends StatefulWidget {
+  const _SupportRequestCard({required this.request});
+
+  final SupportRequestModel request;
+
+  @override
+  State<_SupportRequestCard> createState() => _SupportRequestCardState();
+}
+
+class _SupportRequestCardState extends State<_SupportRequestCard> {
+  bool _busy = false;
+
+  String get _title => switch (widget.request.requestType) {
+    'feedback' => 'Feedback pengguna',
+    'business_deletion' => 'Penghapusan usaha',
+    'account_deletion' => 'Penghapusan akun',
+    _ => 'Permintaan dukungan',
+  };
+
+  Future<bool> _confirmProcessing() async {
+    final request = widget.request;
+    final isBusinessDeletion = request.requestType == 'business_deletion';
+    final content = isBusinessDeletion
+        ? 'Semua data Firestore usaha akan dihapus dan profil pengguna '
+              'dibanned. Identitas Firebase Auth tetap tersimpan. '
+              'Tindakan ini tidak dapat dibatalkan.'
+        : request.requestType == 'account_deletion'
+        ? 'Hapus identitas pengguna dari Firebase Authentication Console '
+              'sebelum menandai permintaan ini selesai. Email: '
+              '${request.email ?? 'tidak tersedia'} · UID: ${request.userId}'
+        : 'Tandai feedback ini sebagai sudah ditinjau?';
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              isBusinessDeletion
+                  ? 'Hapus usaha secara permanen?'
+                  : request.requestType == 'account_deletion'
+                  ? 'Selesaikan penghapusan akun?'
+                  : 'Tandai feedback selesai?',
+            ),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                style: isBusinessDeletion
+                    ? FilledButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      )
+                    : null,
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  isBusinessDeletion
+                      ? 'Hapus usaha'
+                      : request.requestType == 'account_deletion'
+                      ? 'Saya sudah menghapus akun'
+                      : 'Tandai selesai',
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _process() async {
+    if (!await _confirmProcessing()) return;
+    setState(() => _busy = true);
+    try {
+      final request = widget.request;
+      if (request.requestType == 'business_deletion') {
+        final businessDoc = await FirebaseFirestore.instance
+            .collection(businessesCollection)
+            .doc(request.businessId)
+            .get();
+        if (businessDoc.exists) {
+          await MembershipAdminService().deleteBusiness(
+            BusinessModel.fromMap(businessDoc.id, businessDoc.data()!),
+          );
+        }
+      }
+      await SupportService().resolveRequest(request.id);
+      if (mounted) showAppMessage(context, 'Permintaan ditandai selesai.');
+    } catch (error) {
+      if (mounted) showAppMessage(context, error.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final request = widget.request;
+    final date = request.createdAt == null
+        ? 'Baru saja'
+        : DateFormatters.dateTime(request.createdAt!);
+    final isFeedback = request.requestType == 'feedback';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(_title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              '${request.email ?? request.userId} · ${request.role} · $date',
+            ),
+            if (request.businessId.isNotEmpty)
+              Text('ID usaha: ${request.businessId}'),
+            if (isFeedback) ...[
+              const SizedBox(height: 8),
+              Text(request.message),
+            ],
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: _busy ? null : _process,
+                child: _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        isFeedback
+                            ? 'Tandai selesai'
+                            : request.requestType == 'business_deletion'
+                            ? 'Hapus usaha'
+                            : 'Proses akun',
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SummaryCard extends StatelessWidget {
