@@ -18,6 +18,10 @@ migrate_working_dir/
 *.iws
 .idea/
 
+# Local agent skills and configuration
+.agents/
+.agent/skills/
+
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
@@ -46,3 +50,4 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+.agent\skills/

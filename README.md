@@ -36,32 +36,6 @@ logs, and membership payments. User profiles are retained and marked as banned,
 and the corresponding Firebase Authentication accounts are not deleted. A
 banned account cannot sign in again and receives an account-banned notice.
 
-### Bootstrap the first admin
-
-Admin signup is intentionally not available in the app. Since Cloud Functions
-were not enabled, provision the first admin account manually in the trusted
-Firebase Console:
-
-1. In Authentication > Users, create an Email/Password account for
-   `admin@gmail.com` and set its password privately.
-2. Copy the new account's UID.
-3. In Firestore, create `users/{UID}` with these fields:
-   - `businessId`: `__admin__` (string)
-   - `name`: `Stockin Admin` (string)
-   - `role`: `admin` (string)
-   - `isActive`: `true` (boolean)
-   - `createdAt`: current timestamp
-4. Sign in to Stockin using that email and password. The app opens the admin
-   dashboard on Android or Web.
-
-The Firestore rules only grant admin privileges to an active profile with role
-`admin`; normal app accounts cannot create or change that role. Treat access to
-the Firebase Console as privileged and never share the admin password.
-
-The seat counters are updated atomically with employee profile creation and
-activation changes. Employee Auth accounts are created on a secondary Firebase
-Auth instance so adding an employee does not sign the owner out.
-
 ## Firestore data and rules
 
 `firestore.rules` is configured for the app's tenant-scoped data. User profile
